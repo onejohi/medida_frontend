@@ -1,21 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { deleteRectangleData } from './redux/rectangleSlice';
-
-interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  timestamp: string;
-}
-
-interface SavedData {
-  id: string;
-  rectangles: Rectangle[];
-  distance: number | null;
-  createdAt: string;
-}
+import { Rectangle } from './interfaces/Rectangle';
+import { SavedData } from './interfaces/SavedData'
 
 interface MeasurementsTableProps {
   onRowClick: (data: { rectangles: Rectangle[]; distance: number | null }) => void;
@@ -24,18 +11,16 @@ interface MeasurementsTableProps {
 export default function MeasurementsTable({ onRowClick }: MeasurementsTableProps) {
   const dispatch = useDispatch();
 
+  const [rectangles, setRectangles] = useState<SavedData[]>([])
+  const [selectedRow, setSelectedRow] = useState<string | null>(null);
+
   useEffect(() => {
     const savedData = localStorage.getItem('canvasData');
     if (savedData) {
       const parsedData: SavedData[] = JSON.parse(savedData);
       setRectangles(parsedData); // Set the rectangles state with data from localStorage
-      console.log({ parsedData }); // Optional: log the loaded data for debugging
     }
-  }, []);
-  
-  // const rectangles = useSelector(() => savedData);
-  const [rectangles, setRectangles] = useState<SavedData[]>([])
-  const [selectedRow, setSelectedRow] = useState<string | null>(null);
+  }, [rectangles]); 
 
   const handleDelete = (createdAt: string) => {
     if (window.confirm('Are you sure you want to delete this measurement?')) {
@@ -93,7 +78,7 @@ export default function MeasurementsTable({ onRowClick }: MeasurementsTableProps
               </thead>
               
               <tbody className="divide-y divide-gray-200">
-                {rectangles?.map((rectangle: SavedData) => (
+                {rectangles?.map((rectangle) => (
                   <tr
                     key={rectangle.createdAt}
                     className={`cursor-pointer hover:bg-gray-100 ${
@@ -119,7 +104,7 @@ export default function MeasurementsTable({ onRowClick }: MeasurementsTableProps
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(rectangle?.createdAt);
+                          handleDelete(rectangle?.id);
                         }}
                         className="text-red-600 hover:text-red-900 mr-4"
                       >

@@ -1,26 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from './redux/store';
+import { Rectangle } from './interfaces/Rectangle';
+import calculateDistance from './utilities/calculateDistance';
+import { CanvasDrawingProps } from './interfaces/CanvasDrawingProps';
+import redrawRectangles from './utilities/redrawRectangles';
+import isOverlapping from './utilities/isOverlapping';
 import { addSavedData, resetRectangles, saveRectangleData } from './redux/rectangleSlice';
-
-interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface SavedData {
-  id: string;
-  rectangles: Rectangle[];
-  distance: number | null;
-  createdAt: string;
-}
-
-interface CanvasDrawingProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
-  selectedData: { rectangles: Rectangle[]; distance: number | null } | null;
-}
 
 const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }) => {
   const [isDrawing, setIsDrawing] = useState(false);
@@ -32,37 +18,11 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
   const dispatch = useDispatch<AppDispatch>();
   const rectangles = useSelector((state: RootState) => state.rectangles.savedData.map(data => data.rectangles).flat());
 
-  // useEffect(() => {
-  //   // Load rectangles and distance from localStorage on mount
-  //   const savedData = localStorage.getItem('canvasData');
-  //   console.log({ savedData })
-  //   if (savedData) {
-  //     const { rectangles, distance } = JSON.parse(savedData);
-  //     rectangles.forEach((rect: Rectangle) => dispatch(addSavedData({ id:  Date.now().toLocaleString(), rectangles: [rect], distance: null, createdAt: Date.now().toLocaleString() })));
-
-  //     setDistance(distance);
-  //   }
-  // }, [dispatch]);
-
   useEffect(() => {
     if (selectedData && canvasRef.current) {
-      redrawRectangles(selectedData.rectangles);
+      redrawRectangles(canvasRef, selectedData.rectangles);
     }
   }, [selectedData, canvasRef]);
-
-  const redrawRectangles = (rects: Rectangle[] = rectangles) => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if (canvas && context) {
-      context.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before redrawing
-  
-      // Iterate through each rectangle in the list and draw them on the canvas
-      rects.forEach(({ x, y, width, height }) => {
-        context.strokeStyle = 'black'; // Set the stroke color for rectangles
-        context.strokeRect(x, y, width, height); // Draw the rectangle on the canvas
-      });
-    }
-  };  
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawingEnabled) return;
@@ -88,7 +48,7 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      redrawRectangles();
+      redrawRectangles(canvasRef);
 
       const width = x - startPoint.x;
       const height = y - startPoint.y;
@@ -107,7 +67,7 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
       const y = e.clientY - rect.top;
   
       // Create the new rectangle object
-      const newRectangle = {
+      const newRectangle: Rectangle = {
         x: Math.min(startPoint.x, x),
         y: Math.min(startPoint.y, y),
         width: Math.abs(x - startPoint.x),
@@ -115,10 +75,10 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
       };
   
       // Check for overlap
-      const overlaps = rectangles.some((rect) => isOverlapping(rect, newRectangle));
+      const overlaps = rectangles.some((rect) => isOverlapping(rect, newRectangle ));
       if (overlaps) {
         alert('Rectangles cannot overlap.');
-        redrawRectangles();
+        redrawRectangles(canvasRef);
         setIsDrawing(false);
         setStartPoint(null);
         return;
@@ -143,16 +103,13 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
         // Store the distance for the canvas redraw and state
         setDistance(calculatedDistance);
   
-        // Save to localStorage (optional step)
-        saveToLocalStorage(updatedRectangles, calculatedDistance);
-  
         // Disable drawing once we've saved both rectangles
         setIsDrawingEnabled(false);
         setIsDrawing(false);
         setStartPoint(null);
   
         // Redraw all rectangles after update
-        redrawRectangles(updatedRectangles);
+        redrawRectangles(canvasRef, updatedRectangles);
       } else {
         // If there's only one rectangle, just update the state without calculating distance
         dispatch(addSavedData({
@@ -163,37 +120,12 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
         }));
   
         // Redraw the current list of rectangles
-        redrawRectangles(updatedRectangles);
+        redrawRectangles(canvasRef, updatedRectangles);
   
         setIsDrawing(false);
         setStartPoint(null);
       }
     }
-  };
-  
-  const saveToLocalStorage = (rects: Rectangle[], dist: number | null) => {
-    console.log({ rects, dist });
-  };
-
-  const isOverlapping = (rect1: Rectangle, rect2: Rectangle): boolean => {
-    return !(
-      rect1.x + rect1.width <= rect2.x ||
-      rect2.x + rect2.width <= rect1.x ||
-      rect1.y + rect1.height <= rect2.y ||
-      rect2.y + rect2.height <= rect1.y
-    );
-  };
-
-  const calculateDistance = (rects: Rectangle[]): number | null => {
-    if (rects.length < 2) return null;
-
-    const [rect1, rect2] = rects;
-    const x1 = rect1.x + rect1.width / 2;
-    const y1 = rect1.y + rect1.height / 2;
-    const x2 = rect2.x + rect2.width / 2;
-    const y2 = rect2.y + rect2.height / 2;
-
-    return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
   };
 
   const handleRefresh = () => {
@@ -201,7 +133,7 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
     setIsDrawingEnabled(true);
     setDistance(null);
     setUndoStack([]);
-    redrawRectangles([]);
+    redrawRectangles(canvasRef, []);
   };
 
   const handleSave = () => {
@@ -222,27 +154,9 @@ const CanvasDrawing: React.FC<CanvasDrawingProps> = ({ canvasRef, selectedData }
     setUndoStack([...undoStack]);
 
     const updatedRectangles = rectangles.filter((rect) => rect !== lastRectangle);
-
-    // Reset rectangles before updating
     dispatch(resetRectangles());
-
-    // For each rectangle data, create a new SavedData object and dispatch the save action
-    const newSavedData: SavedData = {
-        id:  Date.now().toLocaleString(),
-        rectangles: updatedRectangles,
-        distance: updatedRectangles.length < 2 ? null : calculateDistance(updatedRectangles),
-        createdAt: new Date().toISOString(), // Use the current timestamp
-    };
-
-    // dispatch(saveRectangleData(newSavedData));
-
-    setIsDrawingEnabled(updatedRectangles.length < 2);
-
-    // Redraw the rectangles after updating
-    redrawRectangles(updatedRectangles);
-
-    // Update localStorage manually (though dispatch should already take care of it)
-    saveToLocalStorage(updatedRectangles, newSavedData.distance);
+    setIsDrawingEnabled(updatedRectangles.length <= 2);
+    redrawRectangles(canvasRef, updatedRectangles);
 };
 
 
